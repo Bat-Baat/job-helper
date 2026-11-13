@@ -24,7 +24,7 @@ The left side of the app walks you through it:
 
 1. **Set up** (one time):
    - **A.** Get a Claude key: make an account at console.anthropic.com and add about $10 of credit. Each application costs roughly 10–25 cents.
-   - **B.** Upload your resume. Include *everything* you've done; Job Helper picks the right parts for each job.
+   - **B.** Upload your resume as a PDF, Word (.docx), LaTeX (.tex) or text file. Include *everything* you've done; Job Helper picks the right parts for each job.
    - **C.** Answer the usual application questions once: work authorization, sponsorship, school, and the optional demographic questions.
    - **D.** Pick what kind of jobs you want.
 2. **Find jobs**: click the button. It searches thousands of postings and gives each one a match score from 0–100.

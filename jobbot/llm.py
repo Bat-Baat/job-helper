@@ -89,6 +89,18 @@ class MasterResume(BaseModel):
     extras: list[Section]
 
 
+def strip_latex_comments(tex: str) -> str:
+    """Remove commented-out lines so old/hidden resume content doesn't sneak into the master resume."""
+    tex = re.sub(r"\\begin\{comment\}.*?\\end\{comment\}", "", tex, flags=re.S)
+    tex = re.sub(r"\\iffalse\b.*?\\fi\b", "", tex, flags=re.S)
+    lines = []
+    for line in tex.splitlines():
+        line = re.sub(r"(?<!\\)%.*", "", line)  # an unescaped % starts a comment
+        if line.strip() or (lines and lines[-1].strip()):
+            lines.append(line.rstrip())
+    return "\n".join(lines)
+
+
 def resume_from_file(settings: dict, path: Path, extra_notes: str = "") -> dict:
     """Turn an uploaded PDF / Word / text resume into structured data, word for word."""
     suffix = path.suffix.lower()
@@ -103,6 +115,14 @@ def resume_from_file(settings: dict, path: Path, extra_notes: str = "") -> dict:
             for row in t.rows:
                 text += "\n" + " | ".join(c.text for c in row.cells)
         content = [{"type": "text", "text": f"<resume>\n{text}\n</resume>"}]
+    elif suffix == ".tex":
+        tex = strip_latex_comments(path.read_text(encoding="utf-8", errors="ignore"))
+        content = [{"type": "text", "text": (
+            "This resume is LaTeX source code. Read it as the rendered resume would appear: use only the visible "
+            "text (ignore formatting commands, macro definitions and the preamble), convert LaTeX escapes and accents "
+            "to normal characters (e.g. \\% -> %, \\& -> &, --- -> an em dash), and expand custom macros like "
+            "\\resumeItem{...} or \\resumeSubheading{...}{...} into their text.\n"
+            f"<resume_latex>\n{tex}\n</resume_latex>")}]
     else:
         content = [{"type": "text", "text": f"<resume>\n{path.read_text(errors='ignore')}\n</resume>"}]
     content.append({"type": "text", "text": (

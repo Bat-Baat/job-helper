@@ -105,9 +105,9 @@ elif page == pages[1]:
 
     with t_resume:
         st.subheader("Your master resume")
-        st.markdown("Upload your current resume (PDF or Word). Include **everything** – every job, project, "
+        st.markdown("Upload your current resume (PDF, Word, or the LaTeX .tex file if you made it in Overleaf). Include **everything** – every job, project, "
                     "and skill. Job Helper picks the most relevant parts for each job, so more is better here.")
-        up = st.file_uploader("Resume file", type=["pdf", "docx", "txt"])
+        up = st.file_uploader("Resume file (PDF, Word, LaTeX .tex, or text)", type=["pdf", "docx", "tex", "txt"])
         notes = st.text_area("Optional: anything that's NOT on your resume but could be (extra projects, "
                              "skills, coursework, clubs). Be specific and truthful.", height=100)
         if up and st.button("Read my resume", type="primary", disabled=not settings.get("api_key")):
