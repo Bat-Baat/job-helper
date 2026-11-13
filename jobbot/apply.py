@@ -219,9 +219,20 @@ def mark(frame: Frame, qids: list[str], color: str) -> None:
     for qid in qids:
         try:
             frame.evaluate(
-                """([qid, color]) => document.querySelectorAll(`[data-jh="${qid}"]`).forEach(e => {
-                       const t = e.closest('fieldset, [class*=question], [class*=field], div') || e;
-                       t.style.outline = `3px solid ${color}`; t.style.outlineOffset = '3px'; })""", [qid, color])
+                """([qid, color]) => {
+                     const els = [...document.querySelectorAll(`[data-jh="${qid}"]`)];
+                     if (!els.length) return;
+                     // Outline the smallest visible box that holds the whole question (label + control).
+                     let t = els[0];
+                     const holdsAll = (a) => els.every(e => a.contains(e));
+                     while (t.parentElement && t.parentElement !== document.body) {
+                       t = t.parentElement;
+                       const r = t.getBoundingClientRect();
+                       if (holdsAll(t) && r.height >= 40 && r.width >= 150 && t.innerText.trim().length > 2) break;
+                     }
+                     t.style.outline = `3px solid ${color}`; t.style.outlineOffset = '4px'; t.style.borderRadius = '6px';
+                     t.scrollIntoView({block: 'center'});
+                   }""", [qid, color])
         except PWError:
             pass
 
@@ -355,6 +366,8 @@ def run(job_id: str, auto_submit: bool, headless: bool, wait: bool) -> dict:
         missing = [q for q in qs if q["required"] and is_empty(frame, q)]
         flagged = {q["qid"]: q for q in needs_you + failed + missing}
         mark(frame, list(flagged), "#e5534b")
+        if flagged:
+            frame.evaluate("(qid) => document.querySelector(`[data-jh=\"${qid}\"]`)?.scrollIntoView({block: 'center'})", next(iter(flagged)))
         for q in flagged.values():
             result["issues"].append(f"Please check: “{q['label'][:120]}”")
 
