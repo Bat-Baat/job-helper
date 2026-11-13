@@ -12,11 +12,11 @@ from . import llm, render, sources, store
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def find_and_score(progress=lambda msg, frac=None: None) -> dict:
+def find_and_score(progress=lambda msg, frac=None: None, limit: int | None = None) -> dict:
     settings, profile, resume = store.load_settings(), store.load_profile(), store.load_resume()
     found = sources.find_jobs(settings, lambda m: progress(m, None))
     new = store.upsert_jobs(found)
-    to_score = [j for j in store.list_jobs(["new"]) if j["fit_score"] is None][: int(settings["max_scored_per_run"])]
+    to_score = [j for j in store.list_jobs(["new"]) if j["fit_score"] is None][: int(limit or settings["max_scored_per_run"])]
     errors = 0
     for i, job in enumerate(to_score):
         progress(f"Reading and rating job {i + 1} of {len(to_score)}: {job['title']} at {job['company']}",
@@ -53,9 +53,10 @@ def prepare(job_id: str) -> dict:
     return store.get_job(job_id)
 
 
-def launch_application(job_id: str, auto_submit: bool) -> dict:
-    """Opens the browser window and waits until the person closes it."""
-    cmd = [sys.executable, "-m", "jobbot.apply", job_id] + (["--auto-submit"] if auto_submit else [])
+def launch_application(job_id: str, auto_submit: bool, wait: bool = True) -> dict:
+    """Opens the browser window. With wait=True it waits until the person closes it (otherwise it closes itself)."""
+    cmd = [sys.executable, "-m", "jobbot.apply", job_id] + (["--auto-submit"] if auto_submit else []) \
+        + ([] if wait else ["--no-wait"])
     proc = subprocess.run(cmd, cwd=ROOT, capture_output=True, text=True)
     res_file = store.APPS_DIR / job_id / "result.json"
     result = json.loads(res_file.read_text()) if res_file.exists() else {"submitted": False, "issues": []}
@@ -64,7 +65,7 @@ def launch_application(job_id: str, auto_submit: bool) -> dict:
         store.update_job(job_id, status="failed", notes=result["issues"][0])
         return result
     if result.get("submitted"):
-        store.update_job(job_id, status="applied", applied_at=time.time())
+        store.update_job(job_id, status="applied", applied_at=time.time(), applied_by=result.get("submitted_by", "You"))
     else:
         store.update_job(job_id, status="needs you", notes="; ".join(result.get("issues", []))[:1000])
     return result

@@ -310,6 +310,15 @@ Rules:
   "Company website" / "Other".
 - Free-text questions (e.g. "Why do you want to work here?"): write a genuine, specific 2-4 sentence answer in the
   first person using only real facts from the resume and the job posting. No clichés, no exaggeration.
+- `previously_answered_questions` in the profile are the applicant's own answers to past application questions.
+  Reuse them for the same or clearly equivalent questions (adapting to this form's options).
+- "Have you worked for <company> before?": answer from the resume. "Do you have relatives/friends at <company>?" or
+  conflicts of interest: answer from prior_employers_or_relatives (blank means No).
+- Consent questions (interview recording, AI note-takers, background checks, data processing, text messages about the
+  application): follow the applicant's consent preferences in the profile.
+- Salary questions asking for a number: use the applicant's numeric expectation if given.
+- Prefer answering over flagging: use needs_human only when the answer truly cannot be determined from the profile,
+  previous answers, or resume, because every needs_human stops the application from being submitted automatically.
 - If a REQUIRED question needs information the profile doesn't contain (e.g. a referral's name, a specific
   date not given, a document), use status "needs_human" with your best suggestion in `text` if you have one.
   If an OPTIONAL question needs missing info, use "skip".

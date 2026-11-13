@@ -10,7 +10,10 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-from jobbot import llm, pipeline, render, store
+import subprocess
+import sys
+
+from jobbot import autopilot, llm, pipeline, render, schedule, store
 
 st.set_page_config(page_title="Job Helper", page_icon="💼", layout="wide")
 
@@ -29,7 +32,7 @@ setup_done = {
 }
 st.sidebar.title("💼 Job Helper")
 st.sidebar.caption("Finds data science jobs, tailors your resume, and fills in applications.")
-pages = ["🏠 Start here", "1️⃣ Set up", "2️⃣ Find jobs", "3️⃣ Apply", "📊 My applications"]
+pages = ["🏠 Start here", "1️⃣ Set up", "2️⃣ Find jobs", "3️⃣ Apply", "📊 My applications", "🤖 Autopilot", "✅ Applied"]
 if "page" not in st.session_state:
     st.session_state.page = pages[0] if all(setup_done.values()) else pages[1]
 page = st.sidebar.radio("Go to", pages, key="page", label_visibility="collapsed")
@@ -72,6 +75,9 @@ if page == pages[0]:
    anything untrue), opens the application, and fills in every question for you. You look it over and
    press **Submit**.
 4. **My applications** keeps track of everything you've applied to.
+5. **🤖 Autopilot** (optional) does all of this by itself once a day: up to 100 applications a day (you can change it).
+   Questions it can't answer show up there; answer them once and they're remembered.
+6. **✅ Applied** lists every job applied to, with the exact resume that was sent.
 """)
     jobs = store.list_jobs()
     c1, c2, c3 = st.columns(3)
@@ -215,6 +221,15 @@ elif page == pages[1]:
                                       index=["No", "Yes"].index(a.get("non_compete", "No")))
             relatives = st.text_input("Previously worked at / have relatives at any companies? (list them, or leave blank)",
                                       a.get("prior_employers_or_relatives", ""))
+            col1, col2 = st.columns(2)
+            salary_num = col1.text_input("Yearly salary expectation as a number, for forms that require one (e.g. 95000)",
+                                         a.get("salary_number", ""))
+            hourly_num = col2.text_input("Hourly pay expectation as a number, for internships (e.g. 35)", a.get("hourly_number", ""))
+            consent = st.selectbox("OK to agree to standard consents (interviews being recorded, AI note-takers, background "
+                                   "checks, texts about your application)?", ["Yes", "No", "Ask me each time"],
+                                   index=["Yes", "No", "Ask me each time"].index(a.get("consents", "Yes")))
+            felony = st.selectbox("Have you ever been convicted of a felony?", ["No", "Yes", "Ask me each time"],
+                                  index=["No", "Yes", "Ask me each time"].index(a.get("felony_conviction", "No")))
 
             st.markdown("##### Voluntary self-identification (equal opportunity questions)")
             st.caption("Employers ask these to measure diversity; answering is optional and doesn't affect your application.")
@@ -252,7 +267,8 @@ elif page == pages[1]:
                         work_authorization=auth, needs_sponsorship=spons, citizenship=citizenship, clearance=clearance,
                         school=school, degree=degree, graduation_date=grad, gpa=gpa, year_in_school=year, start_date=start,
                         terms=terms, relocate=relocate, onsite=onsite, salary=salary, how_heard=heard, non_compete=noncompete,
-                        prior_employers_or_relatives=relatives, gender=gender, hispanic_latino=hispanic,
+                        prior_employers_or_relatives=relatives, salary_number=salary_num, hourly_number=hourly_num,
+                        consents=consent, felony_conviction=felony, gender=gender, hispanic_latino=hispanic,
                         race=race or [DECLINE], veteran=veteran, disability=disability, lgbtq=lgbtq, transgender=trans,
                         sexual_orientation=orientation, extra=extra)
                     store.save_profile(profile)
@@ -403,7 +419,7 @@ elif page == pages[4]:
         pick = st.selectbox("Job", list(options))
         c1, c2, c3 = st.columns(3)
         if c1.button("✅ I applied"):
-            store.update_job(options[pick], status="applied", applied_at=time.time())
+            store.update_job(options[pick], status="applied", applied_at=time.time(), applied_by="You")
             st.rerun()
         if c2.button("🔁 Try the application again"):
             res = pipeline.launch_application(options[pick], False)
@@ -411,3 +427,146 @@ elif page == pages[4]:
         if c3.button("🙅 Remove"):
             store.update_job(options[pick], status="skipped")
             st.rerun()
+
+# ------------------------------------------------------------------ autopilot
+
+elif page == pages[5]:
+    st.title("🤖 Autopilot")
+    if not need_setup():
+        st.markdown("""
+Autopilot runs **by itself once a day**: it finds new jobs, rates them, tailors your resume, and **submits** the
+applications – no clicking needed. The computer just has to be on (and you signed in) at that time.
+
+- It submits on **Greenhouse, Lever and Ashby** sites (most tech companies). Jobs on other sites (Workday, etc.)
+  wait in **3️⃣ Apply** for you.
+- It only submits when it had a confident answer for **every** required question. If a question stumps it, it skips
+  that job and lists the question below. **Answer it once and it's remembered forever** – that job (and every future
+  job asking the same thing) goes through on the next run.
+- It never solves CAPTCHAs; if one appears, the job waits for you.
+""")
+        on = schedule.is_installed()
+        with st.form("autopilot"):
+            enabled = st.toggle("Autopilot on", value=on)
+            col1, col2, col3 = st.columns(3)
+            t = col1.time_input("Run every day at", datetime.strptime(settings["autopilot_time"], "%H:%M").time())
+            cap = col2.number_input("Applications per day (max)", min_value=1, max_value=100000,
+                                    value=int(settings["autopilot_daily_cap"]), step=10,
+                                    help="Default 100. You can set it higher. 100 applications take about 3–4 hours.")
+            min_score = col3.slider("Only jobs rated at least", 0, 100, int(settings["autopilot_min_score"]))
+            st.caption(f"Cost estimate at this limit: about ${cap * 0.2 + cap * 2 * 0.015:,.0f} of Claude credit per day "
+                       "(≈20¢ per application + ≈1.5¢ per job rated). Make sure your Claude account has enough credit.")
+            if st.form_submit_button("💾 Save", type="primary"):
+                settings.update(autopilot_time=t.strftime("%H:%M"), autopilot_daily_cap=int(cap),
+                                autopilot_min_score=min_score, autopilot_enabled=enabled)
+                store.save_settings(settings)
+                try:
+                    msg = schedule.install(settings["autopilot_time"]) if enabled else schedule.uninstall()
+                    st.success(msg)
+                except Exception as e:  # noqa: BLE001
+                    st.error(f"Couldn't set up the daily schedule on this computer: {e}")
+
+        today = autopilot.applied_today()
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Status", "On" if schedule.is_installed() else "Off")
+        c2.metric("Applied today", f"{today} / {settings['autopilot_daily_cap']}")
+        c3.metric("Applied in total", len(store.list_jobs(["applied"])))
+
+        if st.button("▶️ Run Autopilot now"):
+            subprocess.Popen([sys.executable, "-m", "jobbot.autopilot"], cwd=Path(__file__).parent,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            st.info("Autopilot started in the background. Browser windows will open and close by themselves – "
+                    "leave them alone. Refresh this page to see progress below.")
+
+        try:
+            last = json.loads(store.AUTOPILOT_LAST.read_text())
+            st.subheader("Last run")
+            when = datetime.fromtimestamp(last.get("finished", last["started"])).strftime("%b %d, %I:%M %p")
+            st.markdown(f"**{when}** – submitted **{len(last.get('submitted', []))}**, "
+                        f"needed you **{len(last.get('needs_you', []))}**, "
+                        f"good matches on other sites waiting **{last.get('manual_waiting', 0)}**.")
+        except (FileNotFoundError, json.JSONDecodeError, KeyError):
+            pass
+        if store.AUTOPILOT_LOG.exists():
+            with st.expander("Activity log"):
+                st.code("\n".join(store.AUTOPILOT_LOG.read_text(encoding="utf-8").splitlines()[-200:]), language=None)
+
+        # ---- questions that blocked applications
+        st.subheader("❓ Questions Autopilot needs you to answer")
+        blocked: dict[str, dict] = {}
+        for j in store.list_jobs(["needs you"]):
+            for q in autopilot.blocked_questions(j["id"]):
+                if not store.recall_answer(q["label"]):
+                    b = blocked.setdefault(store._qkey(q["label"]), dict(q, jobs=[]))
+                    b["jobs"].append(f"{j['company']} – {j['title']}")
+        if not blocked:
+            st.success("Nothing to answer right now. 🎉")
+        else:
+            st.caption("Answer each once. Autopilot will remember it and retry these jobs on its next run.")
+            with st.form("blocked"):
+                given = {}
+                for key, q in list(blocked.items())[:40]:
+                    st.markdown(f"**{q['label']}**")
+                    st.caption("Asked by: " + ", ".join(q["jobs"][:5]) + (" …" if len(q["jobs"]) > 5 else ""))
+                    opts = q.get("options") or []
+                    if q["kind"] == "checkbox" and opts:
+                        given[key] = ("", st.multiselect("Your answer", opts, key="m" + key))
+                    elif opts and q["kind"] != "checkbox_single":
+                        v = st.selectbox("Your answer", ["(skip for now)"] + opts, key="s" + key)
+                        given[key] = ("" if v == "(skip for now)" else v, [])
+                    elif q["kind"] == "checkbox_single":
+                        given[key] = ("checked" if st.checkbox("Check this box", key="c" + key) else "", [])
+                    else:
+                        given[key] = (st.text_input("Your answer", q.get("suggestion", ""), key="t" + key), [])
+                if st.form_submit_button("💾 Save answers", type="primary"):
+                    n = 0
+                    for key, (text, choices) in given.items():
+                        if text or choices:
+                            store.remember_answer(blocked[key]["label"], text, choices, blocked[key].get("options"))
+                            n += 1
+                    st.success(f"Saved {n} answer(s). Those jobs will be retried on the next Autopilot run.")
+                    st.rerun()
+
+        mem = store.load_memory()
+        if mem:
+            with st.expander(f"Remembered answers ({len(mem)})"):
+                for key, m in sorted(mem.items(), key=lambda kv: kv[1]["label"]):
+                    c1, c2 = st.columns([5, 1])
+                    c1.markdown(f"**{m['label'][:150]}** → {', '.join(m['choices']) or m['text']}")
+                    if c2.button("Forget", key="f" + key):
+                        store.forget_answer(key)
+                        st.rerun()
+
+# ------------------------------------------------------------------ applied list
+
+elif page == pages[6]:
+    st.title("✅ Jobs applied to")
+    applied = sorted(store.list_jobs(["applied"]), key=lambda j: -(j["applied_at"] or 0))
+    if not applied:
+        st.info("No applications submitted yet.")
+    else:
+        today = autopilot.applied_today()
+        week = sum(1 for j in applied if (j["applied_at"] or 0) >= time.time() - 7 * 86400)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Today", today)
+        c2.metric("Last 7 days", week)
+        c3.metric("All time", len(applied))
+        q = st.text_input("Search company or job title")
+        rows = [j for j in applied if not q or q.lower() in (j["company"] + " " + j["title"]).lower()]
+        df = pd.DataFrame([{
+            "Applied": datetime.fromtimestamp(j["applied_at"]).strftime("%b %d, %I:%M %p") if j["applied_at"] else "",
+            "Company": j["company"], "Job": j["title"], "Location": (j["location"] or "")[:50],
+            "Match": j["fit_score"], "Submitted by": j.get("applied_by") or "You", "Posting": j["url"]} for j in rows])
+        st.dataframe(df, hide_index=True, use_container_width=True,
+                     column_config={"Match": st.column_config.ProgressColumn("Match", min_value=0, max_value=100, format="%d"),
+                                    "Posting": st.column_config.LinkColumn("Posting", display_text="open")})
+        st.download_button("⬇️ Download as spreadsheet (CSV)", df.to_csv(index=False), "jobs_applied.csv", "text/csv")
+        st.subheader("Resume sent to a job")
+        pick = st.selectbox("Job", [f"{j['company']} – {j['title']}" for j in rows])
+        j = rows[[f"{x['company']} – {x['title']}" for x in rows].index(pick)] if rows else None
+        if j and j.get("resume_path") and Path(j["resume_path"]).exists():
+            st.download_button("⬇️ Download that resume (PDF)", Path(j["resume_path"]).read_bytes(),
+                               Path(j["resume_path"]).name, "application/pdf")
+        shot = store.APPS_DIR / j["id"] / "filled.png" if j else None
+        if shot and shot.exists():
+            with st.expander("What the filled-in application looked like"):
+                st.image(str(shot))

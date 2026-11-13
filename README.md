@@ -33,6 +33,12 @@ The left side of the app walks you through it:
    - Anything outlined in **red** needs you. Check the rest quickly too.
    - Press the site's **Submit** button, then **close that window**. The next job opens.
 4. **My applications**: shows everything you've applied to. You can download it as a spreadsheet.
+5. **🤖 Autopilot** (optional): turn it on and Job Helper applies **by itself every day** at the time you pick. It finds jobs, tailors your resume, and submits, up to **100 applications a day** by default. You can raise or lower that number.
+   - It submits on Greenhouse, Lever and Ashby sites, which most tech companies use. Jobs on other sites wait in **Apply** for you.
+   - If a question stumps it, it skips that job and shows the question on the Autopilot page. **Answer it once and it's remembered.** That job, and every later one asking the same thing, goes through on the next run.
+   - Your computer must be on, and you signed in, at the scheduled time. If it was asleep, it runs when it wakes up.
+   - Cost: about 20 cents per application, plus about 1.5 cents for each job it rates. 100 applications a day is roughly $20–25 a day of Claude credit.
+6. **✅ Applied**: a list of every job applied to, with the date, whether Autopilot or you submitted it, the exact resume that was sent, and a picture of the filled-in form.
 
 ### Good to know
 - **It never makes things up.** The tailored resume only rewords and reorders what's already on your resume. Numbers are never changed and no new skills are added. You can see what changed for each job in the **Apply** page.
@@ -51,6 +57,7 @@ The left side of the app walks you through it:
 | **Matching** | Job titles are filtered by keyword, then Claude rates each new posting 0–100 against the resume and flags blockers like sponsorship or required clearances (`jobbot/llm.py: score_job`). |
 | **Tailoring** | The master resume is stored as structured data. Claude picks, reorders and rewords bullets, and each bullet must point back to a bullet in the master resume. The code then checks that the IDs exist, that no new numbers appear (otherwise the original wording is used), and that every skill is already on the resume. The result is a one-page PDF, made with an HTML template and Chromium (`jobbot/render.py`). |
 | **Applying** | Playwright opens a visible Chromium window (`jobbot/apply.py`). The page script (`jobbot/formfill.js`) finds every question and its label and options: text fields, dropdowns, React-style comboboxes, radio buttons, checkboxes and Yes/No buttons. Contact fields are filled by rules. Claude answers everything else from the questionnaire and resume, choosing exact option text. Required fields left empty or uncertain are outlined in red. Auto-submit is opt-in, only works on Greenhouse, Lever and Ashby, and only runs when every required field is filled and no CAPTCHA is showing. |
+| **Autopilot** | `jobbot/autopilot.py` runs once a day through the system scheduler (`jobbot/schedule.py`: Windows Task Scheduler, macOS launchd, or cron). It rates up to twice the daily limit in new postings, then applies to matches above the score threshold, best first, with 10–30 seconds between applications. It submits only when nothing is flagged and no CAPTCHA is showing; CAPTCHAs are never solved or bypassed. Blocked questions are saved with each result. Answers given in the app, or typed into a browser window before submitting, go into `learned_answers.json` and are reused automatically. |
 | **Storage** | `~/JobHelper/` holds `settings.json` (with the API key), `profile.json`, `master_resume.json`, `jobs.db` (SQLite) and the PDFs. |
 
 Tested against live Greenhouse, Lever and Ashby application forms without submitting.

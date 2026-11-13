@@ -215,6 +215,34 @@ def is_empty(frame: Frame, q: dict) -> bool:
         return False
 
 
+def read_value(frame: Frame, q: dict) -> tuple[str, list[str]]:
+    """What the field currently holds, as (text, choices). Used to remember answers the person typed in."""
+    loc = frame.locator(f'[data-jh="{q["qid"]}"]')
+    opts = q.get("options") or []
+    try:
+        k = q["kind"]
+        if k in ("radio", "checkbox"):
+            picked = [opts[i] for i in range(min(loc.count(), len(opts))) if loc.nth(i).is_checked()]
+            return (picked[0] if picked and k == "radio" else ""), picked
+        if k == "checkbox_single":
+            return ("checked" if loc.first.is_checked() else ""), []
+        if k == "select":
+            t = loc.first.evaluate("e => e.multiple ? '' : (e.selectedOptions[0]?.text || '')").strip()
+            return t, [t] if t else []
+        if k == "combobox":
+            vals = loc.first.evaluate(
+                """el => { let c = el; for (let i = 0; i < 4 && c.parentElement; i++) c = c.parentElement;
+                     return [...c.querySelectorAll('[class*=singleValue], [class*=single-value], [class*=multiValue] [class*=label], [class*=multi-value__label]')]
+                            .map(e => e.innerText.trim()).filter(Boolean); }""")
+            return (vals[0] if len(vals) == 1 else ""), vals
+        if k == "buttons":
+            return "", []
+        t = (loc.first.input_value() or "").strip()
+        return t, []
+    except PWError:
+        return "", []
+
+
 def mark(frame: Frame, qids: list[str], color: str) -> None:
     for qid in qids:
         try:
@@ -340,10 +368,21 @@ def run(job_id: str, auto_submit: bool, headless: bool, wait: bool) -> dict:
                     if rx.search(q["label"]):
                         answers[q["qid"]] = {"qid": q["qid"], "status": "answered", "text": val, "choices": []}
                         break
+        for q in qs:
+            m = store.recall_answer(q["label"]) if q["qid"] not in answers else None
+            if not m:
+                continue
+            opts = q.get("options") or []
+            wanted = m["choices"] or [m["text"]]
+            if not opts or all(best_option(w, opts) is not None for w in wanted if w):
+                answers[q["qid"]] = {"qid": q["qid"], "status": "answered", "text": m["text"], "choices": m["choices"],
+                                     "from_memory": True}
         rest = [q for q in qs if q["qid"] not in answers and q["label"]]
         if rest:
+            memory = {v["label"]: (v["choices"] or v["text"]) for v in store.load_memory().values()}
+            ai_profile = dict(profile, previously_answered_questions=memory) if memory else profile
             try:
-                answers.update(llm.answer_questions(settings, tailored_resume, profile, job, description, rest))
+                answers.update(llm.answer_questions(settings, tailored_resume, ai_profile, job, description, rest))
             except Exception as e:  # noqa: BLE001
                 result["issues"].append(f"Couldn't get answers from Claude: {e}")
 
@@ -370,6 +409,10 @@ def run(job_id: str, auto_submit: bool, headless: bool, wait: bool) -> dict:
             frame.evaluate("(qid) => document.querySelector(`[data-jh=\"${qid}\"]`)?.scrollIntoView({block: 'center'})", next(iter(flagged)))
         for q in flagged.values():
             result["issues"].append(f"Please check: “{q['label'][:120]}”")
+        result["blocked_questions"] = [
+            {"label": q["label"], "kind": q["kind"], "options": q.get("options") or [], "required": q["required"],
+             "suggestion": (answers.get(q["qid"]) or {}).get("text", "")}
+            for q in flagged.values() if q["label"]]
 
         can_auto = auto_submit and job["ats"] in AUTO_SUBMIT_ATS and not flagged and not captcha_showing(page)
         if can_auto:
@@ -379,6 +422,7 @@ def run(job_id: str, auto_submit: bool, headless: bool, wait: bool) -> dict:
                     page.wait_for_timeout(1000)
                     if looks_submitted(page):
                         result["submitted"] = True
+                        result["submitted_by"] = "Autopilot"
                         break
                     if captcha_showing(page):
                         break
@@ -403,14 +447,27 @@ def run(job_id: str, auto_submit: bool, headless: bool, wait: bool) -> dict:
             closed = {"v": False}
             ctx.on("close", lambda *_: closed.update(v=True))
             page.on("close", lambda *_: closed.update(v=True))
+            typed: dict[str, tuple[str, list[str]]] = {}
             while not closed["v"]:
                 try:
+                    if not result["submitted"]:
+                        for q in flagged.values():
+                            v = read_value(frame, q)
+                            if v[0] or v[1]:
+                                typed[q["qid"]] = v
                     if not result["submitted"] and looks_submitted(page):
                         result["submitted"] = True
+                        result["submitted_by"] = "You"
                         banner(page, "✅ <b>Submitted!</b> You can close this window.", "#2da44e")
                     page.wait_for_timeout(1500)
                 except PWError:
                     break
+            if result["submitted"]:
+                for qid, (text, choices) in typed.items():
+                    q = flagged[qid]
+                    if q["kind"] not in ("textarea",):  # long essay answers are job-specific; don't reuse them
+                        store.remember_answer(q["label"], text, choices, q.get("options"))
+                result["learned"] = len(typed)
         try:
             ctx.close()
         except PWError:
