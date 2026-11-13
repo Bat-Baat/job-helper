@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<style>
+  @page { size: Letter; margin: 0.45in 0.55in; }
+  * { box-sizing: border-box; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: {{ fs }}pt; line-height: 1.25; color: #111; margin: 0; }
+  h1 { font-size: 20pt; margin: 0; text-align: center; letter-spacing: .5px; }
+  .contact { text-align: center; font-size: {{ fs - 0.5 }}pt; margin: 3px 0 6px; color: #222; }
+  .contact a { color: #222; text-decoration: none; }
+  h2 { font-size: {{ fs + 1.5 }}pt; text-transform: uppercase; letter-spacing: 1px; border-bottom: 1px solid #333;
+       margin: 9px 0 4px; padding-bottom: 1px; }
+  .row { display: flex; justify-content: space-between; gap: 12px; }
+  .row .l { font-weight: 700; }
+  .row .r { white-space: nowrap; }
+  .sub { font-style: italic; }
+  .entry { margin-bottom: 5px; page-break-inside: avoid; }
+  ul { margin: 2px 0 0 0; padding-left: 15px; }
+  li { margin: 1px 0; }
+  .skills div { margin: 1px 0; }
+  .summary { margin: 0 0 2px; }
+</style></head>
+<body>
+  <h1>{{ r.name }}</h1>
+  <div class="contact">
+    {% set parts = [r.location, r.phone, r.email] | select | list %}
+    {% for x in parts %}{{ x }}{% if not loop.last or r.links %} &nbsp;|&nbsp; {% endif %}{% endfor %}
+    {% for l in r.links %}<a href="{{ l if l.startswith('http') else 'https://' ~ l }}">{{ l | replace('https://','') | replace('http://','') | replace('www.','') }}</a>{% if not loop.last %} &nbsp;|&nbsp; {% endif %}{% endfor %}
+  </div>
+  {% if r.summary %}<div class="summary">{{ r.summary }}</div>{% endif %}
+
+  {% if r.education %}<h2>Education</h2>
+  {% for e in r.education %}<div class="entry">
+    <div class="row"><span class="l">{{ e.school }}</span><span class="r">{{ e.location }}</span></div>
+    <div class="row"><span class="sub">{{ e.degree }}{% if e.field %} in {{ e.field }}{% endif %}{% if e.gpa %} &nbsp;·&nbsp; GPA: {{ e.gpa }}{% endif %}</span>
+      <span class="r">{{ [e.start, e.end] | select | join(" – ") }}</span></div>
+    {% if e.details %}<ul>{% for d in e.details %}<li>{{ d }}</li>{% endfor %}</ul>{% endif %}
+  </div>{% endfor %}{% endif %}
+
+  {% if r.experience %}<h2>Experience</h2>
+  {% for x in r.experience %}<div class="entry">
+    <div class="row"><span class="l">{{ x.org }}</span><span class="r">{{ x.location }}</span></div>
+    <div class="row"><span class="sub">{{ x.title }}</span><span class="r">{{ [x.start, x.end] | select | join(" – ") }}</span></div>
+    <ul>{% for b in x.bullets %}<li>{{ b }}</li>{% endfor %}</ul>
+  </div>{% endfor %}{% endif %}
+
+  {% if r.projects %}<h2>Projects</h2>
+  {% for p in r.projects %}<div class="entry">
+    <div class="row"><span><span class="l">{{ p.name }}</span>{% if p.tech %} <span class="sub">| {{ p.tech }}</span>{% endif %}</span>
+      <span class="r">{{ p.date }}</span></div>
+    <ul>{% for b in p.bullets %}<li>{{ b }}</li>{% endfor %}</ul>
+  </div>{% endfor %}{% endif %}
+
+  {% if r.skills %}<h2>Skills</h2><div class="skills">
+  {% for g in r.skills %}<div><b>{{ g.category }}:</b> {{ g["items"] | join(", ") }}</div>{% endfor %}</div>{% endif %}
+
+  {% for s in r.extras if s.items %}<h2>{{ s.title }}</h2><ul>{% for i in s["items"] %}<li>{{ i }}</li>{% endfor %}</ul>{% endfor %}
+</body></html>

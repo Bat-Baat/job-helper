@@ -1,0 +1,64 @@
+# Companies whose job boards Job Helper checks directly.
+# Find a company's board name in its careers-page URL, e.g.
+#   job-boards.greenhouse.io/<name>/...   jobs.lever.co/<name>/...   jobs.ashbyhq.com/<name>/...
+# Add or remove names freely. Unknown names are skipped.
+greenhouse:
+  - airbnb
+  - affirm
+  - anthropic
+  - asana
+  - block
+  - brex
+  - chime
+  - cloudflare
+  - coinbase
+  - databricks
+  - datadog
+  - discord
+  - doordashusa
+  - dropbox
+  - duolingo
+  - figma
+  - flatironhealth
+  - gusto
+  - imc
+  - instacart
+  - janestreet
+  - lyft
+  - mongodb
+  - nuro
+  - oscar
+  - peloton
+  - pinterest
+  - point72
+  - reddit
+  - robinhood
+  - roblox
+  - samsara
+  - scaleai
+  - sofi
+  - spacex
+  - stripe
+  - toast
+  - twilio
+  - twitch
+  - waymo
+lever:
+  - palantir
+  - spotify
+  - zoox
+ashby:
+  - anyscale
+  - cohere
+  - elevenlabs
+  - hex
+  - linear
+  - modal
+  - notion
+  - openai
+  - perplexity
+  - plaid
+  - ramp
+  - replit
+  - snowflake
+  - vanta

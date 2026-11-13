@@ -1,0 +1,18 @@
+[project]
+name = "job-helper"
+version = "0.1.0"
+description = "Finds data science jobs, tailors your resume, and fills in applications."
+requires-python = ">=3.12"
+dependencies = [
+    "anthropic>=2.8.0",
+    "beautifulsoup4>=4.15.0",
+    "httpx>=0.28.1",
+    "jinja2>=3.1.6",
+    "pandas>=3.1.1",
+    "playwright>=1.65.1",
+    "pypdf>=7.0.1",
+    "python-docx>=1.2.0",
+    "python-jobspy>=1.4.1",
+    "pyyaml>=6.0.3",
+    "streamlit>=1.67.0",
+]
