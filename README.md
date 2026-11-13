@@ -33,11 +33,11 @@ The left side of the app walks you through it:
    - Anything outlined in **red** needs you. Check the rest quickly too.
    - Press the site's **Submit** button, then **close that window**. The next job opens.
 4. **My applications**: shows everything you've applied to. You can download it as a spreadsheet.
-5. **🤖 Autopilot** (optional): turn it on and Job Helper applies **by itself every day** at the time you pick. It finds jobs, tailors your resume, and submits, up to **100 applications a day** by default. You can raise or lower that number.
+5. **🤖 Autopilot** (optional): turn it on and Job Helper applies **by itself every day** at the time you pick. It finds jobs, tailors your resume, and submits, up to **50 applications a day** by default. You can raise or lower that number.
    - It submits on Greenhouse, Lever and Ashby sites, which most tech companies use. Jobs on other sites wait in **Apply** for you.
    - If a question stumps it, it skips that job and shows the question on the Autopilot page. **Answer it once and it's remembered.** That job, and every later one asking the same thing, goes through on the next run.
    - Your computer must be on, and you signed in, at the scheduled time. If it was asleep, it runs when it wakes up.
-   - Cost: about 20 cents per application, plus about 1.5 cents for each job it rates. 100 applications a day is roughly $20–25 a day of Claude credit.
+   - Cost: about 20 cents per application, plus about 1.5 cents for each job it rates. 50 applications a day is roughly $10–12 a day of Claude credit.
 6. **✅ Applied**: a list of every job applied to, with the date, whether Autopilot or you submitted it, the exact resume that was sent, and a picture of the filled-in form.
 
 ### Good to know

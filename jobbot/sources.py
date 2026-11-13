@@ -263,8 +263,9 @@ def find_jobs(settings: dict, progress=lambda msg: None) -> list[dict]:
         jobs += fetch_jobspy(settings)
     seen, unique = set(), []
     for j in jobs:
-        if j["id"] not in seen:
-            seen.add(j["id"])
+        key = (j["company"].strip().lower(), j["title"].strip().lower())
+        if j["id"] not in seen and key not in seen:
+            seen.update([j["id"], key])
             unique.append(j)
     return unique
 

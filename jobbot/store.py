@@ -45,7 +45,7 @@ DEFAULT_SETTINGS = {
     "auto_submit": False,
     "autopilot_enabled": False,
     "autopilot_time": "09:00",
-    "autopilot_daily_cap": 100,
+    "autopilot_daily_cap": 50,
     "autopilot_min_score": 70,
     "write_cover_letters": False,
 }
@@ -156,6 +156,11 @@ def upsert_jobs(jobs: list[dict]) -> int:
     new = 0
     with con:
         for j in jobs:
+            # The same job is often listed under more than one link; never keep (or apply to) it twice.
+            dup = con.execute("SELECT 1 FROM jobs WHERE lower(trim(company))=? AND lower(trim(title))=? AND id<>?",
+                              (j["company"].strip().lower(), j["title"].strip().lower(), j["id"])).fetchone()
+            if dup:
+                continue
             cur = con.execute(
                 "INSERT OR IGNORE INTO jobs (id, source, company, title, location, url, apply_url, ats,"
                 " description, posted_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",

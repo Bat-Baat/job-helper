@@ -75,7 +75,7 @@ if page == pages[0]:
    anything untrue), opens the application, and fills in every question for you. You look it over and
    press **Submit**.
 4. **My applications** keeps track of everything you've applied to.
-5. **🤖 Autopilot** (optional) does all of this by itself once a day: up to 100 applications a day (you can change it).
+5. **🤖 Autopilot** (optional) does all of this by itself once a day: up to 50 applications a day (you can change it).
    Questions it can't answer show up there; answer them once and they're remembered.
 6. **✅ Applied** lists every job applied to, with the exact resume that was sent.
 """)
@@ -451,7 +451,7 @@ applications – no clicking needed. The computer just has to be on (and you sig
             t = col1.time_input("Run every day at", datetime.strptime(settings["autopilot_time"], "%H:%M").time())
             cap = col2.number_input("Applications per day (max)", min_value=1, max_value=100000,
                                     value=int(settings["autopilot_daily_cap"]), step=10,
-                                    help="Default 100. You can set it higher. 100 applications take about 3–4 hours.")
+                                    help="Default 50. You can set it higher or lower. 50 applications take about 1.5–2 hours.")
             min_score = col3.slider("Only jobs rated at least", 0, 100, int(settings["autopilot_min_score"]))
             st.caption(f"Cost estimate at this limit: about ${cap * 0.2 + cap * 2 * 0.015:,.0f} of Claude credit per day "
                        "(≈20¢ per application + ≈1.5¢ per job rated). Make sure your Claude account has enough credit.")
@@ -554,8 +554,8 @@ elif page == pages[6]:
         rows = [j for j in applied if not q or q.lower() in (j["company"] + " " + j["title"]).lower()]
         df = pd.DataFrame([{
             "Applied": datetime.fromtimestamp(j["applied_at"]).strftime("%b %d, %I:%M %p") if j["applied_at"] else "",
-            "Company": j["company"], "Job": j["title"], "Location": (j["location"] or "")[:50],
-            "Match": j["fit_score"], "Submitted by": j.get("applied_by") or "You", "Posting": j["url"]} for j in rows])
+            "Company": j["company"], "Job": j["title"], "Submitted by": j.get("applied_by") or "You",
+            "Match": j["fit_score"], "Location": (j["location"] or "")[:40], "Posting": j["url"]} for j in rows])
         st.dataframe(df, hide_index=True, use_container_width=True,
                      column_config={"Match": st.column_config.ProgressColumn("Match", min_value=0, max_value=100, format="%d"),
                                     "Posting": st.column_config.LinkColumn("Posting", display_text="open")})
